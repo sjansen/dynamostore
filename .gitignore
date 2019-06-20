@@ -1,0 +1,14 @@
+# Directories
+/.idea/
+/.vscode/
+/dist/
+
+# Files
+/dynamostore
+/docker-compose.override.yml
+/TODO
+.DS_Store
+coverage.txt
+
+# Patterns
+.*.sw[op]

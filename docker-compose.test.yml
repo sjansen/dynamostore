@@ -1,0 +1,10 @@
+version: '2.1'
+services:
+  go:
+    command: ./scripts/run-all-tests
+    environment:
+      DYNAMOSTORE_ENDPOINT: "http://dynamodb:8000"
+    volumes:
+     - .:/go/src/github.com/sjansen/dynamostore
+     - "${GOPATH:-/tmp}/pkg/mod:/go/pkg/mod"
+    working_dir: /go/src/github.com/sjansen/dynamostore

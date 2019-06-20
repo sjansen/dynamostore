@@ -1,0 +1,9 @@
+version: '2.1'
+services:
+  dynamodb:
+    image: 'amazon/dynamodb-local'
+  go:
+    build:
+      context: ./docker/go
+    environment:
+      GO111MODULE: "on"

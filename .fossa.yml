@@ -1,0 +1,13 @@
+version: 1
+cli:
+  server: https://app.fossa.io
+  fetcher: custom
+  project: dynamostore
+analyze:
+  modules:
+  - name: github.com/sjansen/dynamostore
+    type: go
+    target: github.com/sjansen/dynamostore
+    path: .
+    options:
+      all-tags: true
