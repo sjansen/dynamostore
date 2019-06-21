@@ -7,6 +7,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
+	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbattribute"
 )
 
 const DefaultTableName = "scs.session"
@@ -17,6 +18,12 @@ var ErrCreateTimedOut = errors.New("timed out waiting for table creation")
 type DynamoStore struct {
 	svc   *dynamodb.DynamoDB
 	table string
+}
+
+type sessionItem struct {
+	Token string `dynamodbav:"token,string"`
+	Data  []byte
+	TTL   time.Time `dynamodbav:"ttl,unixtime"`
 }
 
 // New creates a DynamoStore instance using default values.
@@ -37,20 +44,29 @@ func NewWithTableName(svc *dynamodb.DynamoDB, table string) *DynamoStore {
 // If the session token is not found or is expired, the returned exists flag
 // will be set to false.
 func (s *DynamoStore) Find(token string) (b []byte, exists bool, err error) {
-	return nil, false, nil
+	item, err := s.getItem(token)
+	switch {
+	case err != nil:
+		return nil, false, err
+	case item.Token == "":
+		return nil, false, nil
+	case item.TTL.Before(time.Now()):
+		return nil, false, nil
+	}
+	return item.Data, true, nil
 }
 
 // Commit adds a session token and data to the DynamoStore instance with the
 // given expiry time. If the session token already exists then the data and
 // expiry time are updated.
-func (s *DynamoStore) Commit(token string, b []byte, expiry time.Time) error {
-	return nil
+func (s *DynamoStore) Commit(token string, data []byte, expiry time.Time) error {
+	return s.setItem(token, data, expiry)
 }
 
 // Delete removes a session token and corresponding data from the DynamoStore
 // instance.
 func (s *DynamoStore) Delete(token string) error {
-	return nil
+	return s.deleteItem(token)
 }
 
 // CreateTable creates the session store table, if it doesn't already exist.
@@ -114,6 +130,58 @@ func (s *DynamoStore) createTable() error {
 		},
 	}
 	_, err := s.svc.CreateTable(createTable)
+	return err
+}
+
+func (s *DynamoStore) deleteItem(token string) error {
+	_, err := s.svc.DeleteItem(&dynamodb.DeleteItemInput{
+		TableName: aws.String(s.table),
+		Key: map[string]*dynamodb.AttributeValue{
+			"token": {
+				S: aws.String(token),
+			},
+		},
+	})
+	return err
+}
+
+func (s *DynamoStore) getItem(token string) (*sessionItem, error) {
+	result, err := s.svc.GetItem(&dynamodb.GetItemInput{
+		ConsistentRead: aws.Bool(true),
+		TableName:      aws.String(s.table),
+		Key: map[string]*dynamodb.AttributeValue{
+			"token": {
+				S: aws.String(token),
+			},
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	item := &sessionItem{}
+	err = dynamodbattribute.UnmarshalMap(result.Item, item)
+	if err != nil {
+		return nil, err
+	}
+
+	return item, nil
+}
+
+func (s *DynamoStore) setItem(token string, data []byte, expiry time.Time) error {
+	av, err := dynamodbattribute.MarshalMap(&sessionItem{
+		Token: token,
+		Data:  data,
+		TTL:   expiry,
+	})
+	if err != nil {
+		return err
+	}
+
+	_, err = s.svc.PutItem(&dynamodb.PutItemInput{
+		Item:      av,
+		TableName: aws.String(s.table),
+	})
 	return err
 }
 
