@@ -12,6 +12,7 @@ import (
 const DefaultTableName = "scs.session"
 
 var ErrDeleteInProgress = errors.New("table deletion in progress")
+var ErrCreateTimedOut = errors.New("timed out waiting for table creation")
 
 type DynamoStore struct {
 	svc   *dynamodb.DynamoDB
@@ -64,7 +65,10 @@ func (s *DynamoStore) CreateTable() error {
 	if err := s.createTable(); err != nil {
 		return err
 	}
-	return s.waitForTable()
+	if err := s.waitForTable(); err != nil {
+		return err
+	}
+	return s.updateTTL()
 }
 
 func (s *DynamoStore) checkForTable() (bool, error) {
@@ -113,11 +117,23 @@ func (s *DynamoStore) createTable() error {
 	return err
 }
 
+func (s *DynamoStore) updateTTL() error {
+	updateTTL := &dynamodb.UpdateTimeToLiveInput{
+		TableName: aws.String(s.table),
+		TimeToLiveSpecification: &dynamodb.TimeToLiveSpecification{
+			AttributeName: aws.String("ttl"),
+			Enabled:       aws.Bool(true),
+		},
+	}
+	_, err := s.svc.UpdateTimeToLive(updateTTL)
+	return err
+}
+
 func (s *DynamoStore) waitForTable() error {
 	describeTable := &dynamodb.DescribeTableInput{
 		TableName: aws.String(s.table),
 	}
-	for {
+	for i := 0; i < 60; i++ {
 		time.Sleep(1 * time.Second)
 		result, err := s.svc.DescribeTable(describeTable)
 		if err != nil {
@@ -138,4 +154,5 @@ func (s *DynamoStore) waitForTable() error {
 			return nil
 		}
 	}
+	return ErrCreateTimedOut
 }
