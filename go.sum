@@ -1,5 +1,7 @@
 github.com/alexedwards/scs/v2 v2.1.0 h1:DMObg07KRF16TLpLytA4u0L9rzbuX0clD0BwHQkzAKo=
 github.com/alexedwards/scs/v2 v2.1.0/go.mod h1:ToaROZxyKukJKT/xLcVQAChi5k6+Pn1Gvmdl7h3RRj8=
+github.com/alexedwards/scs/v2 v2.2.0 h1:C0iQ8WHgzEe0zck4whkzvCXnLMP/rw2AM6BdQYNa4/c=
+github.com/alexedwards/scs/v2 v2.2.0/go.mod h1:ToaROZxyKukJKT/xLcVQAChi5k6+Pn1Gvmdl7h3RRj8=
 github.com/aws/aws-sdk-go v1.20.4 h1:czX3oqFyqz/AELrK/tneNuyZgNIrWnyqP+iQXsQ32E0=
 github.com/aws/aws-sdk-go v1.20.4/go.mod h1:KmX6BPdI08NWTb3/sm4ZGu5ShLoqVDhKgpiN924inxo=
 github.com/aws/aws-sdk-go v1.21.8 h1:Lv6hW2twBhC6mGZAuWtqplEpIIqtVctJg02sE7Qn0Zw=
