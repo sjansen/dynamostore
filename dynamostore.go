@@ -4,20 +4,29 @@ import (
 	"errors"
 	"time"
 
+	"github.com/alexedwards/scs/v2"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbattribute"
 )
 
+var _ scs.Store = &DynamoStore{}
+
+// DefaultTableName is used when a more specific name isn't provided.
 const DefaultTableName = "scs.session"
 
+// ErrDeleteInProgress is returned when table creation fails because
+// a table with the same name was recently deleted.
 var ErrDeleteInProgress = errors.New("table deletion in progress")
+
+// ErrCreateTimedOut is returned when table creation takes too long.
 var ErrCreateTimedOut = errors.New("timed out waiting for table creation")
 
+// DynamoStore represents the session store.
 type DynamoStore struct {
 	svc   *dynamodb.DynamoDB
-	table string
+	table *string
 }
 
 type sessionItem struct {
@@ -36,7 +45,7 @@ func New(svc *dynamodb.DynamoDB) *DynamoStore {
 func NewWithTableName(svc *dynamodb.DynamoDB, table string) *DynamoStore {
 	return &DynamoStore{
 		svc:   svc,
-		table: table,
+		table: aws.String(table),
 	}
 }
 
@@ -70,7 +79,7 @@ func (s *DynamoStore) Delete(token string) error {
 }
 
 // CreateTable creates the session store table, if it doesn't already exist.
-// This is only intended as a convencience function to make development and
+// This is only intended as a convenience function to make development and
 // testing easier. It is not intended for use in production.
 func (s *DynamoStore) CreateTable() error {
 	if ok, err := s.checkForTable(); err != nil {
@@ -89,7 +98,7 @@ func (s *DynamoStore) CreateTable() error {
 
 func (s *DynamoStore) checkForTable() (bool, error) {
 	describeTable := &dynamodb.DescribeTableInput{
-		TableName: aws.String(s.table),
+		TableName: s.table,
 	}
 	result, err := s.svc.DescribeTable(describeTable)
 	if err != nil {
@@ -115,7 +124,7 @@ func (s *DynamoStore) checkForTable() (bool, error) {
 func (s *DynamoStore) createTable() error {
 	createTable := &dynamodb.CreateTableInput{
 		BillingMode: aws.String("PAY_PER_REQUEST"),
-		TableName:   aws.String(s.table),
+		TableName:   s.table,
 		KeySchema: []*dynamodb.KeySchemaElement{
 			{
 				AttributeName: aws.String("token"),
@@ -135,7 +144,7 @@ func (s *DynamoStore) createTable() error {
 
 func (s *DynamoStore) deleteItem(token string) error {
 	_, err := s.svc.DeleteItem(&dynamodb.DeleteItemInput{
-		TableName: aws.String(s.table),
+		TableName: s.table,
 		Key: map[string]*dynamodb.AttributeValue{
 			"token": {
 				S: aws.String(token),
@@ -148,7 +157,7 @@ func (s *DynamoStore) deleteItem(token string) error {
 func (s *DynamoStore) getItem(token string) (*sessionItem, error) {
 	result, err := s.svc.GetItem(&dynamodb.GetItemInput{
 		ConsistentRead: aws.Bool(true),
-		TableName:      aws.String(s.table),
+		TableName:      s.table,
 		Key: map[string]*dynamodb.AttributeValue{
 			"token": {
 				S: aws.String(token),
@@ -180,14 +189,14 @@ func (s *DynamoStore) setItem(token string, data []byte, expiry time.Time) error
 
 	_, err = s.svc.PutItem(&dynamodb.PutItemInput{
 		Item:      av,
-		TableName: aws.String(s.table),
+		TableName: s.table,
 	})
 	return err
 }
 
 func (s *DynamoStore) updateTTL() error {
 	updateTTL := &dynamodb.UpdateTimeToLiveInput{
-		TableName: aws.String(s.table),
+		TableName: s.table,
 		TimeToLiveSpecification: &dynamodb.TimeToLiveSpecification{
 			AttributeName: aws.String("ttl"),
 			Enabled:       aws.Bool(true),
@@ -199,7 +208,7 @@ func (s *DynamoStore) updateTTL() error {
 
 func (s *DynamoStore) waitForTable() error {
 	describeTable := &dynamodb.DescribeTableInput{
-		TableName: aws.String(s.table),
+		TableName: s.table,
 	}
 	for i := 0; i < 60; i++ {
 		time.Sleep(1 * time.Second)

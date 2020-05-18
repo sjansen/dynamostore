@@ -1,0 +1,2 @@
+- docker/go/Dockerfile
+- .travis.yml

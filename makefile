@@ -1,4 +1,4 @@
-.PHONY:  default  refresh  test  test-coverage  test-docker
+.PHONY:  default  refresh  test  test-coverage  test-docker  test-release
 
 default: test
 
