@@ -22,3 +22,12 @@ test-release:
 	git stash -u -k
 	goreleaser release --rm-dist --skip-publish
 	-git stash pop
+
+upgrade:
+	go get -u
+	go mod tidy
+	$(MAKE) test-docker
+	@echo ==============================
+	@echo ====== Update Checklist ======
+	@echo ==============================
+	@cat docs/upgrade-checklist.md
