@@ -75,6 +75,9 @@ func (s *DynamoStore) Commit(token string, data []byte, expiry time.Time) error 
 // Delete removes a session token and corresponding data from the DynamoStore
 // instance.
 func (s *DynamoStore) Delete(token string) error {
+	if token == "" {
+		return nil
+	}
 	return s.deleteItem(token)
 }
 
