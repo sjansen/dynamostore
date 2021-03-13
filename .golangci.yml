@@ -17,7 +17,6 @@ linters:
     - govet
     - ineffassign
     - lll
-    - maligned
     - megacheck
     - misspell
     - structcheck
@@ -34,5 +33,3 @@ linters-settings:
         min-confidence: 0
     lll:
         tab-width: 8
-    maligned:
-        suggest-new: true

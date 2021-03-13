@@ -9,30 +9,36 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/credentials"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/dynamodb"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/credentials"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/stretchr/testify/require"
 
 	"github.com/sjansen/dynamostore"
 )
 
-func createClient() *dynamodb.DynamoDB {
+func createClient() *dynamodb.Client {
 	endpoint := os.Getenv("DYNAMOSTORE_ENDPOINT")
 	if endpoint == "" {
 		endpoint = "http://localhost:8000"
 	}
 
-	creds := credentials.NewStaticCredentials("id", "secret", "token")
-	sess := session.Must(session.NewSession())
-	return dynamodb.New(
-		sess,
-		aws.NewConfig().
-			WithCredentials(creds).
-			WithRegion("us-west-2").
-			WithEndpoint(endpoint),
+	creds := credentials.NewStaticCredentialsProvider("id", "secret", "token")
+	client := dynamodb.NewFromConfig(
+		aws.Config{
+			Credentials: creds,
+			Region:      "us-west-2",
+		},
+		dynamodb.WithEndpointResolver(
+			dynamodb.EndpointResolverFromURL(
+				endpoint,
+				func(e *aws.Endpoint) {
+					e.HostnameImmutable = true
+				},
+			),
+		),
 	)
+	return client
 }
 
 func randomString() string {
@@ -52,7 +58,7 @@ func TestDynamoDBLocal(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 
-	_, err := svc.ListTablesWithContext(ctx, &dynamodb.ListTablesInput{})
+	_, err := svc.ListTables(ctx, &dynamodb.ListTablesInput{})
 	require.NoError(err)
 }
 

@@ -1,14 +1,15 @@
 package dynamostore
 
 import (
+	"context"
 	"errors"
 	"time"
 
 	"github.com/alexedwards/scs/v2"
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/awserr"
-	"github.com/aws/aws-sdk-go/service/dynamodb"
-	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbattribute"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 )
 
 var _ scs.Store = &DynamoStore{}
@@ -25,7 +26,7 @@ var ErrCreateTimedOut = errors.New("timed out waiting for table creation")
 
 // DynamoStore represents the session store.
 type DynamoStore struct {
-	svc   *dynamodb.DynamoDB
+	svc   *dynamodb.Client
 	table *string
 }
 
@@ -36,13 +37,13 @@ type sessionItem struct {
 }
 
 // New creates a DynamoStore instance using default values.
-func New(svc *dynamodb.DynamoDB) *DynamoStore {
+func New(svc *dynamodb.Client) *DynamoStore {
 	return NewWithTableName(svc, DefaultTableName)
 }
 
 // NewWithTableName create a DynamoStore instance, overriding the default
 // table name.
-func NewWithTableName(svc *dynamodb.DynamoDB, table string) *DynamoStore {
+func NewWithTableName(svc *dynamodb.Client, table string) *DynamoStore {
 	return &DynamoStore{
 		svc:   svc,
 		table: aws.String(table),
@@ -53,7 +54,8 @@ func NewWithTableName(svc *dynamodb.DynamoDB, table string) *DynamoStore {
 // If the session token is not found or is expired, the returned exists flag
 // will be set to false.
 func (s *DynamoStore) Find(token string) (b []byte, exists bool, err error) {
-	item, err := s.getItem(token)
+	ctx := context.Background()
+	item, err := s.getItem(ctx, token)
 	switch {
 	case err != nil:
 		return nil, false, err
@@ -69,101 +71,103 @@ func (s *DynamoStore) Find(token string) (b []byte, exists bool, err error) {
 // given expiry time. If the session token already exists then the data and
 // expiry time are updated.
 func (s *DynamoStore) Commit(token string, data []byte, expiry time.Time) error {
-	return s.setItem(token, data, expiry)
+	ctx := context.Background()
+	return s.setItem(ctx, token, data, expiry)
 }
 
 // Delete removes a session token and corresponding data from the DynamoStore
 // instance.
 func (s *DynamoStore) Delete(token string) error {
+	ctx := context.Background()
 	if token == "" {
 		return nil
 	}
-	return s.deleteItem(token)
+	return s.deleteItem(ctx, token)
 }
 
 // CreateTable creates the session store table, if it doesn't already exist.
 // This is only intended as a convenience function to make development and
 // testing easier. It is not intended for use in production.
 func (s *DynamoStore) CreateTable() error {
-	if ok, err := s.checkForTable(); err != nil {
+	ctx := context.Background()
+	if ok, err := s.checkForTable(ctx); err != nil {
 		return err
 	} else if ok {
 		return nil
 	}
-	if err := s.createTable(); err != nil {
+	if err := s.createTable(ctx); err != nil {
 		return err
 	}
-	if err := s.waitForTable(); err != nil {
+	if err := s.waitForTable(ctx); err != nil {
 		return err
 	}
-	return s.updateTTL()
+	return s.updateTTL(ctx)
 }
 
-func (s *DynamoStore) checkForTable() (bool, error) {
+func (s *DynamoStore) checkForTable(ctx context.Context) (bool, error) {
 	describeTable := &dynamodb.DescribeTableInput{
 		TableName: s.table,
 	}
-	result, err := s.svc.DescribeTable(describeTable)
+	result, err := s.svc.DescribeTable(ctx, describeTable)
 	if err != nil {
-		if aerr, ok := err.(awserr.Error); ok {
-			if aerr.Code() == dynamodb.ErrCodeResourceNotFoundException {
-				return false, nil
-			}
+		var notFoundErr *types.ResourceNotFoundException
+		if errors.As(err, &notFoundErr) {
+			return false, nil
 		}
 		return false, err
 	}
-	switch status := aws.StringValue(result.Table.TableStatus); status {
-	case "CREATING":
-		return true, s.waitForTable()
-	case "DELETING":
+	switch status := result.Table.TableStatus; status {
+	case types.TableStatusCreating:
+		return true, s.waitForTable(ctx)
+	case types.TableStatusDeleting:
 		return false, ErrDeleteInProgress
-	case "ACTIVE", "UPDATING":
+	case types.TableStatusActive, types.TableStatusUpdating:
 		return true, nil
 	default:
-		return false, errors.New("unrecognized table status: " + status)
+		return false, errors.New("unrecognized table status: " + string(status))
 	}
 }
 
-func (s *DynamoStore) createTable() error {
+func (s *DynamoStore) createTable(ctx context.Context) error {
 	createTable := &dynamodb.CreateTableInput{
-		BillingMode: aws.String("PAY_PER_REQUEST"),
+		BillingMode: types.BillingModePayPerRequest,
 		TableName:   s.table,
-		KeySchema: []*dynamodb.KeySchemaElement{
+		KeySchema: []types.KeySchemaElement{
 			{
 				AttributeName: aws.String("token"),
-				KeyType:       aws.String("HASH"),
+				KeyType:       types.KeyTypeHash,
 			},
 		},
-		AttributeDefinitions: []*dynamodb.AttributeDefinition{
+		AttributeDefinitions: []types.AttributeDefinition{
 			{
 				AttributeName: aws.String("token"),
-				AttributeType: aws.String("S"),
+				AttributeType: types.ScalarAttributeTypeS,
 			},
 		},
 	}
-	_, err := s.svc.CreateTable(createTable)
+	_, err := s.svc.CreateTable(ctx, createTable)
 	return err
 }
 
-func (s *DynamoStore) deleteItem(token string) error {
-	_, err := s.svc.DeleteItem(&dynamodb.DeleteItemInput{
+func (s *DynamoStore) deleteItem(ctx context.Context, token string) error {
+	_, err := s.svc.DeleteItem(ctx, &dynamodb.DeleteItemInput{
 		TableName: s.table,
-		Key: map[string]*dynamodb.AttributeValue{
-			"token": {
-				S: aws.String(token),
+		Key: map[string]types.AttributeValue{
+			"token": &types.AttributeValueMemberS{
+				Value: token,
 			},
 		},
 	})
 	return err
 }
 
-func (s *DynamoStore) getItem(token string) (*sessionItem, error) {
-	result, err := s.svc.GetItem(&dynamodb.GetItemInput{
+func (s *DynamoStore) getItem(ctx context.Context, token string) (*sessionItem, error) {
+	result, err := s.svc.GetItem(ctx, &dynamodb.GetItemInput{
 		ConsistentRead: aws.Bool(true),
 		TableName:      s.table,
-		Key: map[string]*dynamodb.AttributeValue{
-			"token": {
-				S: aws.String(token),
+		Key: map[string]types.AttributeValue{
+			"token": &types.AttributeValueMemberS{
+				Value: token,
 			},
 		},
 	})
@@ -172,7 +176,7 @@ func (s *DynamoStore) getItem(token string) (*sessionItem, error) {
 	}
 
 	item := &sessionItem{}
-	err = dynamodbattribute.UnmarshalMap(result.Item, item)
+	err = attributevalue.UnmarshalMap(result.Item, item)
 	if err != nil {
 		return nil, err
 	}
@@ -180,8 +184,8 @@ func (s *DynamoStore) getItem(token string) (*sessionItem, error) {
 	return item, nil
 }
 
-func (s *DynamoStore) setItem(token string, data []byte, expiry time.Time) error {
-	av, err := dynamodbattribute.MarshalMap(&sessionItem{
+func (s *DynamoStore) setItem(ctx context.Context, token string, data []byte, expiry time.Time) error {
+	av, err := attributevalue.MarshalMap(&sessionItem{
 		Token: token,
 		Data:  data,
 		TTL:   expiry,
@@ -190,47 +194,45 @@ func (s *DynamoStore) setItem(token string, data []byte, expiry time.Time) error
 		return err
 	}
 
-	_, err = s.svc.PutItem(&dynamodb.PutItemInput{
+	_, err = s.svc.PutItem(ctx, &dynamodb.PutItemInput{
 		Item:      av,
 		TableName: s.table,
 	})
 	return err
 }
 
-func (s *DynamoStore) updateTTL() error {
+func (s *DynamoStore) updateTTL(ctx context.Context) error {
 	updateTTL := &dynamodb.UpdateTimeToLiveInput{
 		TableName: s.table,
-		TimeToLiveSpecification: &dynamodb.TimeToLiveSpecification{
+		TimeToLiveSpecification: &types.TimeToLiveSpecification{
 			AttributeName: aws.String("ttl"),
 			Enabled:       aws.Bool(true),
 		},
 	}
-	_, err := s.svc.UpdateTimeToLive(updateTTL)
+	_, err := s.svc.UpdateTimeToLive(ctx, updateTTL)
 	return err
 }
 
-func (s *DynamoStore) waitForTable() error {
+func (s *DynamoStore) waitForTable(ctx context.Context) error {
 	describeTable := &dynamodb.DescribeTableInput{
 		TableName: s.table,
 	}
 	for i := 0; i < 60; i++ {
 		time.Sleep(1 * time.Second)
-		result, err := s.svc.DescribeTable(describeTable)
+		result, err := s.svc.DescribeTable(ctx, describeTable)
 		if err != nil {
-			if aerr, ok := err.(awserr.Error); ok {
-				if aerr.Code() != dynamodb.ErrCodeResourceNotFoundException {
-					return err
-				}
-			} else {
-				return err
+			var notFoundErr *types.ResourceNotFoundException
+			if errors.As(err, &notFoundErr) {
+				return nil
 			}
+			return err
 		}
-		switch aws.StringValue(result.Table.TableStatus) {
-		case "CREATING":
+		switch result.Table.TableStatus {
+		case types.TableStatusCreating:
 			// continue loop
-		case "DELETING":
+		case types.TableStatusDeleting:
 			return ErrDeleteInProgress
-		case "ACTIVE", "UPDATING":
+		case types.TableStatusActive, types.TableStatusUpdating:
 			return nil
 		}
 	}
