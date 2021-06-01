@@ -2,6 +2,7 @@ github.com/alexedwards/scs/v2 v2.4.0 h1:XfnMamKnvp1muJVNr1WzikQTclopsBXWZtzz0NBj
 github.com/alexedwards/scs/v2 v2.4.0/go.mod h1:ToaROZxyKukJKT/xLcVQAChi5k6+Pn1Gvmdl7h3RRj8=
 github.com/aws/aws-sdk-go-v2 v1.2.1 h1:055XAi+MtmhyYX161p+jWRibkCb9YpI2ymXZiW1dwVY=
 github.com/aws/aws-sdk-go-v2 v1.2.1/go.mod h1:hTQc/9pYq5bfFACIUY9tc/2SYWd9Vnmw+testmuQeRY=
+github.com/aws/aws-sdk-go-v2 v1.6.0/go.mod h1:tI4KhsR5VkzlUa2DZAdwx7wCAYGwkZZ1H31PYrBFx1w=
 github.com/aws/aws-sdk-go-v2/credentials v1.1.2 h1:YoNqfhxAJGZI+lStIbqgx30UcCqQ86fr7FjTLUvrFOc=
 github.com/aws/aws-sdk-go-v2/credentials v1.1.2/go.mod h1:hofjw//lM0XLplgvzPPMA7oD0doQU1QpaIK1nweEEWg=
 github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue v1.0.3 h1:xJpS5hGycvWiKDto1ujoeJWzGmRydwbTaEoKUCdJJ28=
@@ -18,6 +19,7 @@ github.com/aws/aws-sdk-go-v2/service/sso v1.1.2/go.mod h1:5yU1oE3+CVYYLUsaHt2AVU
 github.com/aws/aws-sdk-go-v2/service/sts v1.1.2/go.mod h1:zu7rotIY9P4Aoc6ytqLP9jeYrECDHUODB5Gbp+BSHl8=
 github.com/aws/smithy-go v1.2.0 h1:0PoGBWXkXDIyVdPaZW9gMhaGzj3UOAgTdiVoHuuZAFA=
 github.com/aws/smithy-go v1.2.0/go.mod h1:SObp3lf9smib00L/v3U2eAKG8FyQ7iLrJnQiAmR5n+E=
+github.com/aws/smithy-go v1.4.0/go.mod h1:SObp3lf9smib00L/v3U2eAKG8FyQ7iLrJnQiAmR5n+E=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
